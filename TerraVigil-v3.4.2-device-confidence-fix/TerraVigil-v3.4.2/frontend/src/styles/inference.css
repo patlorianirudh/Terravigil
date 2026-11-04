@@ -1,0 +1,329 @@
+.inference-status {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 24px;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 12px;
+  background: rgb(var(--color-surface));
+}
+.inference-status-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgb(var(--color-surface-elevated));
+  color: rgb(var(--color-text-muted));
+  flex-shrink: 0;
+}
+.inference-status-icon.is-ready {
+  color: rgb(var(--color-accent));
+}
+.inference-status h2 {
+  margin: 5px 0 2px;
+  font-size: 18px;
+  font-weight: 500;
+}
+.inference-status p {
+  color: rgb(var(--color-text-secondary));
+  font-size: 12px;
+}
+.inference-ready {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: rgb(var(--color-accent));
+  font-size: 12px;
+  white-space: nowrap;
+}
+.inference-model-detail {
+  max-width: 310px;
+  font-size: 11px;
+  color: rgb(var(--color-text-muted));
+}
+.inference-model-detail summary {
+  cursor: pointer;
+}
+.inference-model-detail code {
+  display: block;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+.inference-layout {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.inference-form-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 23px;
+}
+.inference-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 164px;
+  padding: 22px;
+  border: 1px dashed rgb(var(--color-border-control));
+  border-radius: 9px;
+  text-align: center;
+  cursor: pointer;
+  background: rgb(var(--color-background) / 0.3);
+}
+.inference-upload:focus-within,
+.inference-upload:hover {
+  border-color: rgb(var(--color-accent));
+}
+.inference-upload svg {
+  color: rgb(var(--color-accent));
+}
+.inference-upload strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.inference-upload span {
+  color: rgb(var(--color-text-muted));
+  font-size: 11px;
+}
+.inference-field {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  color: rgb(var(--color-text-secondary));
+}
+.inference-field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: rgb(var(--color-background));
+  color: rgb(var(--color-text-primary));
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.inference-field input:focus {
+  outline: 1px solid rgb(var(--color-accent));
+}
+.inference-field small {
+  font-size: 11px;
+  line-height: 1.65;
+  color: rgb(var(--color-text-muted));
+}
+.inference-form fieldset {
+  min-width: 0;
+}
+.inference-form legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 13px;
+  font-size: 13px;
+}
+.inference-form legend span {
+  font-size: 10px;
+  color: rgb(var(--color-text-muted));
+}
+.inference-gps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.inference-help {
+  margin-top: 9px;
+  color: rgb(var(--color-text-muted));
+  font-size: 11px;
+  line-height: 1.7;
+}
+.inference-help svg {
+  display: inline;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+.inference-mission {
+  border-top: 1px solid rgb(var(--color-border));
+  padding-top: 19px;
+}
+.inference-mission strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.inference-mission p {
+  color: rgb(var(--color-text-muted));
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 7px;
+}
+.inference-output {
+  overflow: hidden;
+}
+.inference-canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: rgb(var(--color-background));
+  min-height: 400px;
+}
+.inference-canvas img {
+  display: block;
+  width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+}
+.inference-empty {
+  padding: 60px 24px;
+  text-align: center;
+  max-width: 360px;
+  color: rgb(var(--color-text-muted));
+}
+.inference-empty svg {
+  margin: 0 auto 25px;
+  color: rgb(var(--color-accent));
+}
+.inference-empty h3 {
+  font-size: 20px;
+  color: rgb(var(--color-text-primary));
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+.inference-empty p {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.inference-processing {
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--color-background) / 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgb(var(--color-accent));
+}
+.inference-preview-note {
+  padding: 16px 22px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgb(var(--color-text-muted));
+  border-top: 1px solid rgb(var(--color-border));
+}
+.inference-results {
+  padding: 22px;
+  border-top: 1px solid rgb(var(--color-border));
+}
+.inference-result-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.inference-result-summary strong {
+  font-size: 19px;
+  font-weight: 500;
+}
+.inference-result-summary p {
+  margin-top: 5px;
+  font-size: 12px;
+  color: rgb(var(--color-text-secondary));
+}
+.inference-link,
+.inference-result-footer a {
+  color: rgb(var(--color-accent));
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+.inference-table-wrap {
+  overflow-x: auto;
+  margin-top: 20px;
+}
+.inference-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+}
+.inference-table-wrap th {
+  font-weight: 400;
+  color: rgb(var(--color-text-muted));
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid rgb(var(--color-border));
+  white-space: nowrap;
+}
+.inference-table-wrap td {
+  padding: 14px 14px 14px 0;
+  border-bottom: 1px solid rgb(var(--color-border));
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+}
+.inference-table-wrap td:first-child {
+  font-family: inherit;
+  font-size: 12px;
+}
+.inference-table-wrap small {
+  display: block;
+  color: rgb(var(--color-text-muted));
+  margin-top: 4px;
+}
+.inference-result-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+  align-items: center;
+}
+.inference-result-footer span {
+  margin-left: auto;
+  font-size: 9px;
+  color: rgb(var(--color-text-muted));
+  overflow-wrap: anywhere;
+}
+.inference-no-results {
+  margin-top: 18px;
+  color: rgb(var(--color-text-secondary));
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 1100px) {
+  .inference-layout {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+  .inference-model-detail {
+    display: none;
+  }
+  .inference-result-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 760px) {
+  .inference-layout {
+    grid-template-columns: 1fr;
+  }
+  .inference-status {
+    padding: 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .inference-ready {
+    margin-left: 60px;
+  }
+  .inference-canvas {
+    min-height: 280px;
+  }
+}

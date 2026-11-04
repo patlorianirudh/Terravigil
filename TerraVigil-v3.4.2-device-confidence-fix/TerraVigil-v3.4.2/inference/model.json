@@ -1,0 +1,63 @@
+{
+  "name": "best.pt",
+  "sha256": "02d9b7eac5d7bbd33e0b8168ea892f24da6099b1fc02e9c87c688b928a464f93",
+  "bytes": 6255914,
+  "task": "detect",
+  "trainingUltralytics": "8.4.157",
+  "trainingDate": "2026-09-20T17:18:11.167298+00:00",
+  "classes": [
+    {
+      "id": 0,
+      "name": "camouflage_soldier"
+    },
+    {
+      "id": 1,
+      "name": "weapon"
+    },
+    {
+      "id": 2,
+      "name": "military_tank"
+    },
+    {
+      "id": 3,
+      "name": "military_truck"
+    },
+    {
+      "id": 4,
+      "name": "military_vehicle"
+    },
+    {
+      "id": 5,
+      "name": "civilian"
+    },
+    {
+      "id": 6,
+      "name": "soldier"
+    },
+    {
+      "id": 7,
+      "name": "civilian_vehicle"
+    },
+    {
+      "id": 8,
+      "name": "military_artillery"
+    },
+    {
+      "id": 9,
+      "name": "trench"
+    },
+    {
+      "id": 10,
+      "name": "military_aircraft"
+    },
+    {
+      "id": 11,
+      "name": "military_warship"
+    },
+    {
+      "id": 12,
+      "name": "land_mines"
+    }
+  ],
+  "source": "User-supplied train-2.zip / train-2/weights/best.pt"
+}

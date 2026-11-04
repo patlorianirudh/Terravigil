@@ -1,0 +1,12 @@
+node_modules/
+.venv/
+**/__pycache__/
+**/.env
+**/serviceAccountKey.json
+**/*service-account*.json
+backend/data/
+telemetry/DroneTelemetry/
+images/*
+!images/README.md
+.runtime/
+*.log

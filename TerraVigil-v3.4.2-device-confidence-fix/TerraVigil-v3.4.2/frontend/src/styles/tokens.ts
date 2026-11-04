@@ -1,0 +1,52 @@
+// Semantic palette mirrored from index.css for canvas, SVG and charts.
+export const TOKENS = {
+  surfaces: {
+    background: 'rgb(15, 19, 18)',
+    surface: 'rgb(21, 26, 24)',
+    surfaceElevated: 'rgb(29, 35, 32)',
+    surfaceSunken: 'rgb(12, 17, 15)',
+    surfaceHover: 'rgb(36, 43, 39)',
+  },
+  borders: {
+    border: 'rgb(43, 51, 46)',
+    borderStrong: 'rgb(67, 78, 70)',
+    borderControl: 'rgb(112, 126, 116)',
+  },
+  text: {
+    primary: 'rgb(235, 241, 235)',
+    secondary: 'rgb(170, 183, 173)',
+    muted: 'rgb(140, 155, 144)',
+  },
+  accent: {
+    primary: 'rgb(173, 218, 184)',
+    focusRing: 'rgb(199, 236, 204)',
+  },
+  status: {
+    ok: 'rgb(107, 202, 146)',
+    okFill: 'rgb(24, 43, 32)',
+    okBorder: 'rgb(43, 84, 60)',
+    warning: 'rgb(230, 187, 108)',
+    warningFill: 'rgb(43, 36, 24)',
+    warningBorder: 'rgb(95, 77, 46)',
+    critical: 'rgb(241, 130, 123)',
+    criticalFill: 'rgb(49, 28, 27)',
+    criticalBorder: 'rgb(105, 53, 48)',
+    offline: 'rgb(157, 166, 160)',
+    offlineFill: 'rgb(31, 35, 33)',
+    offlineBorder: 'rgb(65, 73, 68)',
+    info: 'rgb(143, 186, 212)',
+    infoFill: 'rgb(24, 37, 44)',
+    infoBorder: 'rgb(50, 76, 89)',
+  },
+  risk: {
+    high: 'rgb(248, 113, 113)',
+    highFill: 'rgb(49, 28, 27)',
+    highBorder: 'rgb(105, 53, 48)',
+    medium: 'rgb(250, 204, 21)',
+    mediumFill: 'rgb(43, 39, 15)',
+    mediumBorder: 'rgb(95, 77, 32)',
+    low: 'rgb(74, 222, 128)',
+    lowFill: 'rgb(24, 43, 32)',
+    lowBorder: 'rgb(43, 84, 60)',
+  },
+} as const;

@@ -1,0 +1,11 @@
+# Tested with Python 3.12 on CPU. Supported setup: Python 3.10-3.12.
+# On Linux/Windows, install CPU wheels FIRST to avoid CUDA package downloads:
+# python -m pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cpu
+# Then: python -m pip install -r inference/requirements.txt
+# The +cpu builds satisfy the version pins below. macOS uses normal PyPI wheels.
+torch==2.8.0
+torchvision==0.23.0
+ultralytics==8.4.157
+numpy==2.2.6
+Pillow==11.3.0
+opencv-python==4.12.0.88

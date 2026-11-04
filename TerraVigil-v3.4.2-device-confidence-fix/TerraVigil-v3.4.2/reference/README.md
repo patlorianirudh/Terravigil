@@ -1,0 +1,1 @@
+This telemetry.csv is the original supplied historical recording. It is not live data and is not automatically loaded. See ../START_HERE.md, section 3, to compare Firebase times against it. Use a separate file for every new flight.

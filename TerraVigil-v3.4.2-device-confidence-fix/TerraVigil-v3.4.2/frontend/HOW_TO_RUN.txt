@@ -1,0 +1,7 @@
+Extract the project. Open a terminal in its root folder.
+Copy your existing Firebase key to backend/serviceAccountKey.json.
+Run: python start_terravigil.py --setup
+Then: python start_terravigil.py
+Open the localhost URL printed by the launcher, normally http://localhost:3000.
+For live drone telemetry: python start_terravigil.py
+See START_HERE.md in the root folder for Mission Planner and real-image setup.

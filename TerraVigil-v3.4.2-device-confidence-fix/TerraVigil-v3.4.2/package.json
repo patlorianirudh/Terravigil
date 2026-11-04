@@ -1,0 +1,22 @@
+{
+  "name": "terravigil-workspace",
+  "version": "3.4.0",
+  "private": true,
+  "description": "TerraVigil Firebase detection and Pixhawk telemetry workspace",
+  "scripts": {
+    "start": "node scripts/start.cjs",
+    "setup": "node scripts/setup.cjs",
+    "setup:model": "node scripts/setup.cjs --model-only",
+    "setup:dev": "node scripts/setup.cjs --dev",
+    "doctor": "node scripts/doctor.cjs",
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "telemetry": "node scripts/telemetry.cjs",
+    "check:firebase": "node scripts/telemetry.cjs --check",
+    "test:telemetry": "python -m unittest discover -s telemetry/tests -v",
+    "firebase:test:send": "python send_firebase_test_images.py"
+  },
+  "engines": {
+    "node": ">=22.12.0 <23 || >=24.0.0 <25"
+  }
+}
