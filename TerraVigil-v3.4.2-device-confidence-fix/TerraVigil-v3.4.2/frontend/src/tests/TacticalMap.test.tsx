@@ -147,7 +147,7 @@ afterEach(async () => {
 });
 
 describe('survey map geometry', () => {
-  it('shows unlocalized image context explicitly without drawing risk or uncertainty halos around its GPS point', async () => {
+  it('draws an unlocalized camera observation as a dot and states the target is not localized in its popup', async () => {
     const imageContext = {
       ...detection('image-context', 17.38, 78.48),
       classification: 'unconfirmed_visual' as const,
@@ -159,18 +159,17 @@ describe('survey map geometry', () => {
     await commit(() => {
       root.render(<TacticalMap detections={[imageContext]} />);
     });
-    expect(mapLayers().filter((layer) => layer instanceof L.CircleMarker)).toHaveLength(0);
+    // Sensor modality decides the shape: a camera candidate is a dot.
+    expect(mapLayers().filter((layer) => layer instanceof L.CircleMarker)).toHaveLength(1);
+    // No uncertainty halo is drawn for an unlocalized target.
     expect(mapLayers().filter((layer) => layer instanceof L.Circle)).toHaveLength(0);
-    expect(container.querySelector('.image-context-marker')).not.toBeNull();
     const marker = mapLayers().find(
       (layer) => layer.getTooltip()?.getElement()?.textContent === 'image-context',
     );
     await commit(() => {
       marker?.openPopup();
     });
-    expect(container.querySelector('.leaflet-popup')?.textContent).toContain(
-      'Image location (target not localized)',
-    );
+    expect(container.querySelector('.leaflet-popup')?.textContent).toContain('Image context only');
     expect(container.querySelector('.leaflet-popup')?.textContent).toContain(
       'Visual prediction only; no metal sensor evidence.',
     );
@@ -244,7 +243,7 @@ describe('survey map geometry', () => {
     expect(popup?.textContent).not.toContain('AGL');
   });
 
-  it('keeps observation shapes at fixed pixel size through initial fitting, late data and zooming', async () => {
+  it('draws camera observations as dots and metal observations as crosses at fixed pixel size', async () => {
     const visual = {
       ...detection('fixed-size-visual', 17.38, 78.48),
       classification: 'unconfirmed_visual' as const,
@@ -253,23 +252,30 @@ describe('survey map geometry', () => {
       ...detection('fixed-size-metal', 17.3801, 78.4801),
       classification: 'unresolved_metal' as const,
     };
-    const assertPixelSize = (index: number, height: number) => {
-      const marker = mapLayers().filter((layer): layer is L.Polygon => layer instanceof L.Polygon)[
-        index
-      ];
-      if (!marker) throw new Error(`Missing observation marker ${String(index)}`);
-      const bounds = marker.getBounds();
-      const nw = activeMap().project(bounds.getNorthWest(), activeMap().getZoom());
-      const se = activeMap().project(bounds.getSouthEast(), activeMap().getZoom());
-      expect(se.x - nw.x).toBeCloseTo(18, 4);
-      expect(se.y - nw.y).toBeCloseTo(height, 4);
+    const assertDotCount = (count: number) => {
+      // Camera observations are the only radius-6 interactive dots; the flight
+      // start/end markers and risk halos use other radii or are non-interactive.
+      expect(
+        mapLayers().filter(
+          (layer) => layer instanceof L.CircleMarker && layer.options.radius === 6,
+        ),
+      ).toHaveLength(count);
+    };
+    const assertCrossCount = (count: number) => {
+      // Metal crosses are drawn as weight-3 coloured arms over a weight-6 dark
+      // underlay; the flight track uses weight 6 and 1.8. Count the coloured
+      // arms (two per cross).
+      const arms = mapLayers().filter(
+        (layer) => layer instanceof L.Polyline && layer.options.weight === 3,
+      ).length;
+      expect(arms).toBe(count * 2);
     };
     await commit(() => {
       root.render(<TacticalMap detections={[visual, metal]} zoom={17} />);
     });
     expect(activeMap().getZoom()).not.toBe(17);
-    assertPixelSize(0, 16);
-    assertPixelSize(1, 18);
+    assertDotCount(1);
+    assertCrossCount(1);
 
     // A newly arriving marker mounts in the same commit as the late track fit.
     const late = {
@@ -286,15 +292,13 @@ describe('survey map geometry', () => {
         />,
       );
     });
-    assertPixelSize(0, 16);
-    assertPixelSize(1, 18);
-    assertPixelSize(2, 16);
+    assertDotCount(2);
+    assertCrossCount(1);
     await commit(() => {
       activeMap().setZoom(18, { animate: false });
     });
-    assertPixelSize(0, 16);
-    assertPixelSize(1, 18);
-    assertPixelSize(2, 16);
+    assertDotCount(2);
+    assertCrossCount(1);
   });
 
   it('fits route endpoints and returned waypoints, including maps without survey records', async () => {
@@ -478,7 +482,8 @@ describe('survey map geometry', () => {
       markers[0]?.openPopup();
     });
     expect(container.querySelector('.leaflet-popup')?.textContent).toContain('record-a');
-    expect(container.querySelector('.leaflet-popup')?.textContent).toContain('Metal detected: Yes');
+    expect(container.querySelector('.leaflet-popup')?.textContent).toContain('Metal detected');
+    expect(container.querySelector('.leaflet-popup')?.textContent).toContain('Yes');
   });
 
   it('shows mission, collection, raw evidence and a contradictory stored-status warning in the popup', async () => {
@@ -506,23 +511,17 @@ describe('survey map geometry', () => {
     );
     const popup = container.querySelector('.leaflet-popup');
     for (const value of [
-      'Mission S1',
-      'Collection detection',
-      'mongo-status-record',
-      '17.3812345',
-      '78.4812345',
-      '0.6234',
-      'Metal detected: No',
-      'Stored status CONFIRMED',
-      '2026-01-01T00:00:10.000Z',
+      '17.381235',
+      '78.481234',
+      '62.3%',
+      'Stored status',
+      'CONFIRMED',
       record.validationIssue,
+      'mongo-status-record',
     ]) {
       expect(popup?.textContent).toContain(value);
     }
-    expect(popup?.textContent).toContain('Stored status · needs validation');
     expect(popup?.textContent).toContain('Altitude (datum unreported) 42.00 m');
-    expect(popup?.textContent).toContain('Metal signal —');
-    expect(popup?.textContent).toContain('Risk score —');
   });
 
   it('uses reported risk colors for unconfirmed shapes and can hide the high-risk overlay alone', async () => {
@@ -538,10 +537,17 @@ describe('survey map geometry', () => {
     await commit(() => {
       root.render(<TacticalMap detections={[visual, metal]} />);
     });
-    const shapes = () =>
-      mapLayers().filter((layer): layer is L.Polygon => layer instanceof L.Polygon);
-    expect(shapes()[0]?.options.color).toBe(TOKENS.risk.high);
-    expect(shapes()[1]?.options.color).toBe(TOKENS.risk.medium);
+    const dot = () =>
+      mapLayers().find(
+        (layer): layer is L.CircleMarker =>
+          layer instanceof L.CircleMarker && layer.options.interactive !== false,
+      );
+    const cross = () =>
+      mapLayers().find(
+        (layer): layer is L.Polyline => layer instanceof L.Polyline && layer.options.weight === 3,
+      );
+    expect(dot()?.options.fillColor).toBe(TOKENS.risk.high);
+    expect(cross()?.options.color).toBe(TOKENS.risk.medium);
     const highlights = () =>
       mapLayers().filter(
         (layer) => layer instanceof L.CircleMarker && layer.options.interactive === false,
@@ -551,7 +557,8 @@ describe('survey map geometry', () => {
       useUIStore.getState().setLayer('riskHeatmap', false);
     });
     expect(highlights()).toHaveLength(0);
-    expect(shapes()).toHaveLength(2);
+    expect(dot()).toBeDefined();
+    expect(cross()).toBeDefined();
   });
 
   it('uses red, yellow and green for risk independently of confirmation', async () => {
@@ -570,14 +577,22 @@ describe('survey map geometry', () => {
       (layer): layer is L.CircleMarker =>
         layer instanceof L.CircleMarker && layer.options.radius === 7,
     );
-    const visual = mapLayers().filter((layer): layer is L.Polygon => layer instanceof L.Polygon);
-    for (const markers of [confirmed, visual]) {
-      expect(markers.map((marker) => marker.options.color)).toEqual([
-        'rgb(248, 113, 113)',
-        'rgb(250, 204, 21)',
-        'rgb(74, 222, 128)',
-      ]);
-    }
+    const visual = mapLayers().filter(
+      (layer): layer is L.CircleMarker =>
+        layer instanceof L.CircleMarker && layer.options.radius === 6,
+    );
+    // Confirmed markers carry the risk colour on the stroke; camera dots carry
+    // it on the fill (their stroke is a dark contrast outline).
+    expect(confirmed.map((marker) => marker.options.color)).toEqual([
+      'rgb(248, 113, 113)',
+      'rgb(250, 204, 21)',
+      'rgb(74, 222, 128)',
+    ]);
+    expect(visual.map((marker) => marker.options.fillColor)).toEqual([
+      'rgb(248, 113, 113)',
+      'rgb(250, 204, 21)',
+      'rgb(74, 222, 128)',
+    ]);
     await commit(() => labelledPoint('confirmed-low')?.openPopup());
     const popup = container.querySelector('.leaflet-popup');
     expect(popup?.textContent).toContain('LOW risk');

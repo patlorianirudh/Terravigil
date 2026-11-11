@@ -67,8 +67,41 @@ export interface BridgeEvent {
     method?: string;
   };
 }
+export interface LiveTelemetry {
+  state: 'live' | 'waiting' | 'missing' | string;
+  message: string | null;
+  csv_path: string | null;
+  csv_size_bytes?: number | null;
+  csv_mtime?: string | null;
+  tail_rows?: number | null;
+  timestamp?: string | null;
+  age_ms?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  latitude_valid?: boolean;
+  altitude_m?: number | null;
+  relative_altitude_m?: number | null;
+  ground_speed_m_s?: number | null;
+  roll_deg?: number | null;
+  pitch_deg?: number | null;
+  yaw_deg?: number | null;
+  battery_voltage_v?: number | null;
+  battery_remaining_percent?: number | null;
+  flight_mode?: string | null;
+  armed?: boolean | null;
+  gps_fix_type?: number | null;
+  satellites?: number | null;
+  hdop?: number | null;
+  timestamp_source?: string | null;
+  received_at_utc?: string | null;
+  time_boot_ms?: number | null;
+  system_id?: number | null;
+  fields?: Record<string, string>;
+}
+
 export const bridgeApi = {
   status: () => request<BridgeStatus>('/bridge/status'),
+  liveTelemetry: () => request<LiveTelemetry>('/bridge/live-telemetry'),
   events: (missionId?: string) =>
     request<BridgeEvent[]>('/bridge/events', { query: { mission_id: missionId } }),
   restart: () => request<BridgeStatus>('/bridge/restart', { method: 'POST', body: {} }),

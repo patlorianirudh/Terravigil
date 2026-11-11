@@ -1347,3 +1347,31 @@
   display: block;
   color: rgb(var(--color-text-primary));
 }
+/* Compact fact grid inside the detection popup: label/value rows that stay
+   readable and never render a wall of empty "—" fields. */
+.map-popup-facts {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 5px;
+  background: rgb(var(--color-surface-sunken));
+  font-size: 10px;
+}
+.map-popup-facts > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  min-width: 0;
+}
+.map-popup-facts dt {
+  color: rgb(var(--color-text-muted));
+  font-family: 'IBM Plex Mono', monospace;
+}
+.map-popup-facts dd {
+  margin: 0;
+  color: rgb(var(--color-text-primary));
+  font-family: 'IBM Plex Mono', monospace;
+  overflow-wrap: anywhere;
+}

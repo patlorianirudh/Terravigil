@@ -3,8 +3,13 @@ const express = require('express');
 function createBridgeRouter(service) {
   const router = express.Router();
   router.get('/bridge/status', async (_req, res) => res.json(await service.status()));
+  router.get('/bridge/live-telemetry', (_req, res) => res.json(service.liveTelemetry()));
   router.get('/bridge/events', async (req, res) => res.json(await service.events(typeof req.query.mission_id === 'string' ? req.query.mission_id : undefined)));
   router.post('/bridge/restart', async (_req, res) => { await service.restart(); res.json(await service.status()); });
+  router.post('/bridge/refusion', async (_req, res) => {
+    try { res.json(await service.refusion()); }
+    catch (error) { res.status(500).json({ code: 'FUSION_FAILED', message: error?.message || 'Sensor fusion could not run.' }); }
+  });
   router.post('/bridge/demo', (_req, res) => res.status(410).json({ code: 'PRACTICE_REMOVED', message: 'Simulated detections are disabled in this version.' }));
   router.get('/bridge/images/:id', async (req, res) => {
     const file = await service.imageFile(req.params.id);

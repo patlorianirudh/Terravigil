@@ -29,6 +29,7 @@ import { useDetections } from '../hooks/useDetections';
 import { useCoverage } from '../hooks/useCoverage';
 import { useTrack } from '../hooks/useTrack';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
+import { useLiveCsvTelemetry } from '../hooks/useLiveCsvTelemetry';
 import { useSystemHealth, useSystemEvents } from '../hooks/useSystem';
 import { config } from '../config';
 import { ABSENT, fmtArea, fmtCount, fmtNum, fmtShortId, fmtTime } from '../lib/formatters';
@@ -54,6 +55,7 @@ export function OperationsPage() {
   const missionBackend = config.dataMode === 'live' && config.backendStyle === 'missions';
   const { data: coverage } = useCoverage(session?.id);
   const { latestTelemetry: pushedTelemetry, trackHistory: pushedTrack } = useLiveTelemetry();
+  const live = useLiveCsvTelemetry();
   const { data: recordedTrack = [] } = useTrack(session?.id);
   const sessionPushedTrack = pushedTrack.filter((p) => p.sessionId === session?.id);
   const trackHistory =
@@ -280,6 +282,92 @@ export function OperationsPage() {
           </div>
         </article>
       </div>
+
+      <section className="ops-live-strip" aria-label="Live Pixhawk telemetry">
+        <div className="ops-live-heading">
+          <span
+            className={`ops-live-dot ${live.isStreaming ? 'is-live' : live.isStale ? 'is-stale' : ''}`}
+            aria-hidden="true"
+          />
+          <h2 className="type-eyebrow">LIVE TELEMETRY</h2>
+          <span className={`ops-live-age ${live.isStale ? 'is-stale' : ''}`}>
+            {live.isError
+              ? 'Live telemetry unavailable'
+              : live.hasData
+                ? `updated ${live.data?.age_ms != null ? `${Math.max(0, Math.round(live.data.age_ms / 1000))}s` : 'just now'} ago`
+                : (live.data?.message ?? 'Waiting for telemetry…')}
+          </span>
+          <Link to="/live-preview" className="ops-text-link">
+            Live preview
+            <ArrowUpRight size={12} />
+          </Link>
+        </div>
+        {live.hasData ? (
+          <div className="ops-live-tiles">
+            <div className="ops-live-tile">
+              <span className="ops-live-tile-label">Altitude (rel)</span>
+              <span className="ops-live-tile-value">
+                {fmtNum(live.data?.relative_altitude_m, 1)}
+                <em>m</em>
+              </span>
+              <span className="ops-live-tile-note">AMSL {fmtNum(live.data?.altitude_m, 1)} m</span>
+            </div>
+            <div className="ops-live-tile">
+              <span className="ops-live-tile-label">Ground speed</span>
+              <span className="ops-live-tile-value">
+                {fmtNum(live.data?.ground_speed_m_s, 2)}
+                <em>m/s</em>
+              </span>
+              <span className="ops-live-tile-note">
+                {fmtNum(
+                  live.data?.ground_speed_m_s != null ? live.data.ground_speed_m_s * 3.6 : null,
+                  1,
+                )}{' '}
+                km/h
+              </span>
+            </div>
+            <div className="ops-live-tile">
+              <span className="ops-live-tile-label">Flight mode</span>
+              <span className="ops-live-tile-value ops-live-tile-text">
+                {live.data?.flight_mode ?? ABSENT}
+              </span>
+              <span className="ops-live-tile-note">
+                {live.data?.armed == null ? 'Arm state unknown' : live.data.armed ? 'ARMED' : 'Disarmed'}
+              </span>
+            </div>
+            <div className="ops-live-tile">
+              <span className="ops-live-tile-label">Roll / pitch</span>
+              <span className="ops-live-tile-value">
+                {fmtNum(live.data?.roll_deg, 1)}
+                <em>/</em>
+                {fmtNum(live.data?.pitch_deg, 1)}
+                <em>deg</em>
+              </span>
+              <span className="ops-live-tile-note">Yaw {fmtNum(live.data?.yaw_deg, 1)}°</span>
+            </div>
+            <div className="ops-live-tile">
+              <span className="ops-live-tile-label">Position</span>
+              <span className="ops-live-tile-value ops-live-tile-pos">
+                {live.data?.latitude != null && live.data?.longitude != null
+                  ? `${live.data.latitude.toFixed(6)}, ${live.data.longitude.toFixed(6)}`
+                  : ABSENT}
+              </span>
+              <span className="ops-live-tile-note">
+                {live.data?.satellites != null
+                  ? `${live.data.satellites} satellites · HDOP ${fmtNum(live.data?.hdop, 1)}`
+                  : 'Satellites not reported'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="ops-live-empty">
+            {live.isError
+              ? 'The live telemetry endpoint could not be reached.'
+              : (live.data?.message ??
+                'Waiting for the MAVLink logger to append telemetry rows to the CSV.')}
+          </p>
+        )}
+      </section>
 
       {missionBackend && (
         <p className="text-xs text-text-muted">

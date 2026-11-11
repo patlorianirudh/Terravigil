@@ -32,7 +32,7 @@ function matches(row, query = {}) {
         throw new Error(`Unsupported local query operator: ${op}`);
       });
     }
-    return same(value, copy(expected));
+    
   });
 }
 

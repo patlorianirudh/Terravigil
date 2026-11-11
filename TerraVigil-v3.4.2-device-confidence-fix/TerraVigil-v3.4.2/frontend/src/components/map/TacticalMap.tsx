@@ -5,7 +5,6 @@ import {
   LayerGroup,
   MapContainer,
   Marker,
-  Polygon,
   Polyline,
   Popup,
   Tooltip,
@@ -22,8 +21,8 @@ import { ConfidenceLedger } from '../ui/ConfidenceLedger';
 import { TOKENS } from '../../styles/tokens';
 import { config } from '../../config';
 import { ScaleBar } from './GraticuleLayer';
-import { ABSENT, fmtNum, fmtUncertainty } from '../../lib/formatters';
-import { detectionClassLabel, detectionDeviceLabel, detectionLabel, sensorConfidenceLabel } from '../../lib/classification';
+import { ABSENT, fmtNum } from '../../lib/formatters';
+import { detectionClassLabel, detectionLabel, sensorConfidenceLabel } from '../../lib/classification';
 import { BasemapLayer, type BasemapMode } from './BasemapLayer';
 import '../../styles/maps.css';
 
@@ -84,6 +83,20 @@ function riskColor(band: Detection['riskBand']): string {
         ? TOKENS.risk.low
         : TOKENS.text.secondary;
 }
+/**
+ * Colour for a marker whose risk band was never assessed (Firebase sensor
+ * events store risk_level null). Distinct per sensor so the map stays readable
+ * and never implies a risk assessment that was not made: camera = cyan,
+ * metal = orange. Both are visible on satellite imagery and distinct from the
+ * red/yellow/green risk palette.
+ */
+function sensorColor(detection: Detection): string {
+  if (detection.riskBand !== null && detection.riskBand !== undefined)
+    return riskColor(detection.riskBand);
+  return detection.classification === 'unresolved_metal'
+    ? 'rgb(251, 146, 60)' // orange — metal
+    : 'rgb(56, 189, 248)'; // cyan — camera
+}
 function droneIcon(heading: number | null): L.DivIcon {
   if (heading !== null && !Number.isFinite(heading)) heading = null;
   const symbol =
@@ -107,14 +120,6 @@ function endpointIcon(label: 'A' | 'B'): L.DivIcon {
     iconSize: [30, 30],
     iconAnchor: [15, 15],
     html: `<span aria-label="Route ${label}">${label}</span>`,
-  });
-}
-function imageLocationIcon(): L.DivIcon {
-  return L.divIcon({
-    className: 'image-context-marker',
-    iconSize: [36, 28],
-    iconAnchor: [18, 14],
-    html: '<span aria-label="Image location (target not localized)">IMG</span>',
   });
 }
 const ClickCapture: React.FC<{ onPick: (position: Coordinate) => void }> = ({ onPick }) => {
@@ -261,119 +266,167 @@ const ObservationMarker: React.FC<{
       map.off('zoomend', synchronizeZoom);
     };
   }, [map]);
-  const points = useMemo(() => {
+  // Sensor modality decides the shape so the map is readable at a glance:
+  // camera candidates are dots, metal candidates are crosses. Shape — not
+  // colour — carries the distinction (P-20.12).
+  const isMetal = detection.classification === 'unresolved_metal';
+  const crossArms = useMemo(() => {
+    if (!isMetal) return null;
     const center = map.project([detection.position.lat, detection.position.lon], zoomLevel);
-    const offsets =
-      detection.classification === 'unconfirmed_visual'
-        ? [
-            [0, -9],
-            [9, 7],
-            [-9, 7],
-          ]
-        : [
-            [0, -9],
-            [9, 0],
-            [0, 9],
-            [-9, 0],
-          ];
-    return offsets.map(([x = 0, y = 0]) =>
-      map.unproject(L.point(center.x + x, center.y + y), zoomLevel),
-    );
-  }, [map, detection.position.lat, detection.position.lon, detection.classification, zoomLevel]);
+    const arm = 9;
+    const toLatLng = (x: number, y: number) =>
+      map.unproject(L.point(center.x + x, center.y + y), zoomLevel);
+    // Two separate arms so the cross reads as a clean '+', not a zigzag.
+    return [
+      [toLatLng(0, -arm), toLatLng(0, arm)],
+      [toLatLng(-arm, 0), toLatLng(arm, 0)],
+    ];
+  }, [map, detection.position.lat, detection.position.lon, isMetal, zoomLevel]);
+  const color = sensorColor(detection);
   return (
-    <Polygon
-      positions={points}
-      bubblingMouseEvents={false}
-      pathOptions={{
-        color: riskColor(detection.riskBand),
-        fillColor: TOKENS.surfaces.background,
-        fillOpacity: 1,
-        weight: 1.6,
-      }}
-      eventHandlers={{ click: onSelect }}
-    >
-      {children}
-    </Polygon>
+    <>
+      {isMetal && crossArms ? (
+        <>
+          {/* Dark underlay for contrast on bright imagery. */}
+          {crossArms.map((arm, index) => (
+            <Polyline
+              key={`under-${index}`}
+              positions={arm}
+              interactive={false}
+              pathOptions={{ color: 'rgb(10, 14, 12)', weight: 6, opacity: 0.9, lineCap: 'round' }}
+            />
+          ))}
+          {crossArms.map((arm, index) => (
+            <Polyline
+              key={`arm-${index}`}
+              positions={arm}
+              bubblingMouseEvents={false}
+              pathOptions={{ color, weight: 3, opacity: 1, lineCap: 'round' }}
+              eventHandlers={{ click: onSelect }}
+            >
+              {index === 0 ? children : null}
+            </Polyline>
+          ))}
+        </>
+      ) : (
+        <CircleMarker
+          center={[detection.position.lat, detection.position.lon]}
+          radius={6}
+          bubblingMouseEvents={false}
+          pathOptions={{
+            color: 'rgb(10, 14, 12)',
+            fillColor: color,
+            fillOpacity: 1,
+            weight: 1.5,
+          }}
+          eventHandlers={{ click: onSelect }}
+        >
+          {children}
+        </CircleMarker>
+      )}
+    </>
   );
 };
 const DetectionPopup: React.FC<{
   detection: Detection;
   visualThreshold: number | null;
   metalThreshold: number | null;
-}> = ({ detection, visualThreshold, metalThreshold }) => (
-  <div className="min-w-[248px] space-y-3">
-    <div className="flex flex-wrap gap-1.5">
-      <ClassificationBadge
-        classification={detection.classification}
-        validationIssue={detection.validationIssue ?? null}
-      />
-      <RiskBadge band={detection.riskBand} score={detection.riskScore} />
-    </div>
-    <strong className="block text-[13px] text-text-primary">
-      {detectionClassLabel(detection)}
-    </strong>
-    {detectionDeviceLabel(detection) && (
-      <p className="text-[11px] text-text-muted">Detected by {detectionDeviceLabel(detection)}</p>
-    )}
-    {sensorConfidenceLabel(detection) && (
-      <p className="text-[11px] text-text-muted">{sensorConfidenceLabel(detection)}</p>
-    )}
-    {detection.targetLocationKnown === false && (
-      <div className="map-image-context-note">
-        <strong>
-          {detection.locationSource === 'aircraft_gps_at_capture'
-            ? 'Aircraft position at capture'
-            : 'Image context only'}
+}> = ({ detection, visualThreshold, metalThreshold }) => {
+  const isMetal = detection.classification === 'unresolved_metal';
+  const isCamera = detection.classification === 'unconfirmed_visual';
+  const observed = detection.lastObservedAt
+    ? new Date(detection.lastObservedAt).toLocaleString()
+    : ABSENT;
+  return (
+    <div className="min-w-[248px] space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        <ClassificationBadge
+          classification={detection.classification}
+          validationIssue={detection.validationIssue ?? null}
+        />
+        <RiskBadge band={detection.riskBand} score={detection.riskScore} />
+      </div>
+      <div>
+        <strong className="block text-[14px] text-text-primary">
+          {detectionClassLabel(detection)}
         </strong>
-        <p>
-          {detection.locationSource === 'aircraft_gps_at_capture'
-            ? 'Timestamp matched to Pixhawk telemetry. Exact ground target position is unknown.'
-            : (detection.confirmationSource ??
-              'This point locates the image. The detected target has not been localized.')}
+        <p className="mt-0.5 text-[11px] text-text-muted">
+          {isMetal ? 'Metal detector hit' : isCamera ? 'Camera detection' : 'Observation'} ·{' '}
+          {observed}
         </p>
       </div>
-    )}
-    <div className="break-all font-mono text-[10px] text-text-muted">
-      <p>ID {detectionLabel(detection)}</p>
-      <p>Record {detection.sourceRecordId ?? ABSENT}</p>
-      <p>Mission {detection.sessionId}</p>
-      <p>Collection {detection.sourceType ?? ABSENT}</p>
-      <p>
-        {detection.targetLocationKnown === false ? 'Image location (target not localized)' : 'GPS'}{' '}
-        {detection.position.lat}, {detection.position.lon}
-      </p>
-      <p>{altitudeText(detection.position)}</p>
-      {detection.targetLocationKnown !== false && (
-        <p>CEP95 {fmtUncertainty(detection.localizationUncertaintyM)}</p>
+      {sensorConfidenceLabel(detection) && (
+        <p className="text-[12px] font-medium text-text-primary">
+          {sensorConfidenceLabel(detection)}
+        </p>
       )}
-      <p>Observed {detection.lastObservedAt || ABSENT}</p>
-      <p>Stored status {detection.sourceStatus ?? ABSENT}</p>
-      <p>Sensor device {detectionDeviceLabel(detection) ?? ABSENT}</p>
-      <p>{sensorConfidenceLabel(detection) ?? `Sensor confidence ${ABSENT}`}</p>
-      <p>YOLO confidence {detection.bestVisualConfidence ?? ABSENT}</p>
-      <p>
-        Metal detected:{' '}
-        {detection.metalDetected == null ? ABSENT : detection.metalDetected ? 'Yes' : 'No'}
-      </p>
-      <p>Metal signal {detection.bestMetalSignalNorm ?? ABSENT}</p>
-      <p>
-        Risk band {detection.riskBand?.toUpperCase() ?? ABSENT} · Risk score{' '}
-        {detection.riskScore ?? ABSENT}
-      </p>
+      {detection.targetLocationKnown === false && (
+        <div className="map-image-context-note">
+          <strong>
+            {detection.locationSource === 'aircraft_gps_at_capture'
+              ? 'Aircraft position at capture'
+              : 'Image context only'}
+          </strong>
+          <p>
+            {detection.locationSource === 'aircraft_gps_at_capture'
+              ? 'Timestamp matched to Pixhawk telemetry. Exact ground target position is unknown.'
+              : (detection.confirmationSource ??
+                'This point locates the image. The detected target has not been localized.')}
+          </p>
+        </div>
+      )}
+      <dl className="map-popup-facts">
+        <div>
+          <dt>Position</dt>
+          <dd>
+            {detection.position.lat.toFixed(6)}, {detection.position.lon.toFixed(6)}
+          </dd>
+        </div>
+        <div>
+          <dt>Altitude</dt>
+          <dd>{altitudeText(detection.position)}</dd>
+        </div>
+        {detection.bestVisualConfidence != null && (
+          <div>
+            <dt>YOLO confidence</dt>
+            <dd>{(detection.bestVisualConfidence * 100).toFixed(1)}%</dd>
+          </div>
+        )}
+        {detection.bestMetalSignalNorm != null && (
+          <div>
+            <dt>Metal signal</dt>
+            <dd>{detection.bestMetalSignalNorm}</dd>
+          </div>
+        )}
+        {detection.metalDetected != null && (
+          <div>
+            <dt>Metal detected</dt>
+            <dd>{detection.metalDetected ? 'Yes' : 'No'}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Status</dt>
+          <dd>{detection.sourceStatus ?? ABSENT}</dd>
+        </div>
+        <div>
+          <dt>Record</dt>
+          <dd className="break-all">{detection.sourceRecordId ?? detectionLabel(detection)}</dd>
+        </div>
+      </dl>
+      {detection.validationIssue && (
+        <p className="text-[11px] text-warning">{detection.validationIssue}</p>
+      )}
+      <ConfidenceLedger
+        visualConfidence={detection.bestVisualConfidence}
+        metalSignalNorm={detection.bestMetalSignalNorm}
+        visualThreshold={visualThreshold}
+        metalThreshold={metalThreshold}
+        corroborationCount={detection.corroborationCount}
+        compact
+      />
     </div>
-    {detection.validationIssue && (
-      <p className="text-[11px] text-warning">{detection.validationIssue}</p>
-    )}
-    <ConfidenceLedger
-      visualConfidence={detection.bestVisualConfidence}
-      metalSignalNorm={detection.bestMetalSignalNorm}
-      visualThreshold={visualThreshold}
-      metalThreshold={metalThreshold}
-      corroborationCount={detection.corroborationCount}
-      compact
-    />
-  </div>
-);
+  );
+};
 
 export const TacticalMap: React.FC<TacticalMapProps> = ({
   center = [0, 0],
@@ -706,20 +759,7 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
                           }}
                         />
                       )}
-                      {detection.targetLocationKnown === false ? (
-                        <Marker
-                          position={at}
-                          icon={imageLocationIcon()}
-                          eventHandlers={{
-                            click: () => {
-                              onSelectDetection?.(detection);
-                            },
-                          }}
-                        >
-                          {popup}
-                          {label}
-                        </Marker>
-                      ) : classification === 'confirmed' ? (
+                      {classification === 'confirmed' ? (
                         <CircleMarker
                           center={at}
                           radius={7}
@@ -835,12 +875,9 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
             <i className="map-dot low" />
             Low risk
           </span>
-          <span>● Stored confirmed</span>
-          <span>△ Visual detection</span>
-          <span>◇ Unresolved metal</span>
-          <span>
-            <i className="map-image-context-key">IMG</i> Image location · target not localized
-          </span>
+          <span>⬤ Stored confirmed</span>
+          <span>● Camera detection</span>
+          <span>✚ Metal detection</span>
           <span>
             <i className="map-line-key flight" /> Flight start/end
           </span>

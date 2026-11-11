@@ -10,6 +10,7 @@ const SessionDetailPage = lazy(() =>
 );
 import { DetectionsPage } from './pages/DetectionsPage';
 import { DetectionDetailPage } from './pages/DetectionDetailPage';
+import { LivePreviewPage } from './pages/LivePreviewPage';
 import { RiskMapPage } from './pages/RiskMapPage';
 const RoutePlannerPage = lazy(() =>
   import('./pages/RoutePlannerPage').then((module) => ({ default: module.RoutePlannerPage })),
@@ -60,6 +61,7 @@ export const AppRouter: React.FC = () => {
           <Route element={<AppShell />}>
             <Route path="/" element={<OperationsPage />} />
             <Route path="/live" element={<LiveConsolePage />} />
+            <Route path="/live-preview" element={<LivePreviewPage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/sessions/:id" element={<SessionDetailPage />} />
             <Route path="/detections" element={<DetectionsPage />} />

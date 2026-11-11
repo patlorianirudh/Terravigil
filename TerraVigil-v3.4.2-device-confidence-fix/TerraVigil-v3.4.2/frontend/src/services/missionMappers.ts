@@ -45,12 +45,14 @@ function coordinate(dto: WireRecord): Coordinate | null {
   const lon = number(dto.longitude);
   if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   // The original API's `altitude` has no declared datum. It is neither AGL nor AMSL.
+  // The firebase telemetry bridge sends `relative_altitude_m` (AGL, home-relative)
+  // and `altitude_amsl_m`; accept both spellings so altitude always renders.
   return {
     lat,
     lon,
     altitudeM: number(dto.altitude),
-    altAglM: number(dto.altitude_agl_m),
-    altAmslM: number(dto.altitude_amsl_m),
+    altAglM: number(dto.altitude_agl_m) ?? number(dto.relative_altitude_m),
+    altAmslM: number(dto.altitude_amsl_m) ?? number(dto.altitude_m),
   };
 }
 
@@ -373,6 +375,19 @@ export function toMissionTrack(value: unknown): TrackPoint | null {
   const sessionId = string(dto.mission_id);
   const position = coordinate(dto);
   if (sessionId === null || position === null) return null;
+  // Pixhawk CSV numeric GPS fix type: 0/1 no fix, 2 = 2D, 3 = 3D, 4 = DGPS,
+  // 5 = RTK float, 6 = RTK fixed.
+  const fixByNumber: Record<number, TrackPoint['fixType']> = {
+    0: 'no_fix',
+    1: 'no_fix',
+    2: 'fix_2d',
+    3: 'fix_3d',
+    4: 'dgps',
+    5: 'rtk_float',
+    6: 'rtk_fixed',
+  };
+  const fixNumber = number(dto.gps_fix_type);
+  const armedText = dto.armed;
   return {
     sessionId,
     sourceRecordId: string(dto._id) ?? string(record(dto._id).$oid),
@@ -381,16 +396,25 @@ export function toMissionTrack(value: unknown): TrackPoint | null {
     tMonoNs: null,
     groundSpeedMs: number(dto.ground_speed_ms),
     headingDeg: number(dto.heading_deg),
-    rollDeg: null,
-    pitchDeg: null,
+    rollDeg: number(dto.roll_deg),
+    pitchDeg: number(dto.pitch_deg),
     fixType: ['no_fix', 'fix_2d', 'fix_3d', 'dgps', 'rtk_float', 'rtk_fixed'].includes(
       String(dto.fix_type),
     )
       ? (dto.fix_type as TrackPoint['fixType'])
-      : null,
+      : (fixNumber !== null ? (fixByNumber[fixNumber] ?? null) : null),
     hdop: number(dto.hdop),
     satellites: number(dto.satellites),
     batteryPercent: number(dto.battery_percent),
+    batteryVoltageV: number(dto.battery_voltage_v),
+    flightMode: string(dto.flight_mode),
+    armed: typeof armedText === 'boolean'
+      ? armedText
+      : armedText === 'true'
+        ? true
+        : armedText === 'false'
+          ? false
+          : null,
     linkQualityPercent: number(dto.link_quality_percent),
     pass: dto.pass === 'survey' || dto.pass === 'confirmation' ? dto.pass : null,
     achievedFps: null,

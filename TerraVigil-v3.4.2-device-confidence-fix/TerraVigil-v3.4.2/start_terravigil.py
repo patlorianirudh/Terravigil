@@ -202,6 +202,8 @@ def main(argv=None):
             raise RuntimeError(f'Port {args.port} is in use. Stop the other app or choose --port 3001.') from None
     children = []
     interrupted = False
+    telemetry_child = None
+    telemetry_warned = False
     def request_stop(_signum, _frame):
         nonlocal interrupted
         interrupted = True
@@ -210,12 +212,16 @@ def main(argv=None):
         backend = start_child([node, ROOT / 'backend/integrated-server.js'], 'app', env)
         children.append(backend)
         if args.mode == 'live' and not args.no_telemetry:
-            children.append(start_child([python_executable(), '-u', ROOT / 'telemetry/drone_metrics_forwarded.py'], 'telemetry', env))
+            telemetry_child = start_child([python_executable(), '-u', ROOT / 'telemetry/drone_metrics_forwarded.py'], 'telemetry', env)
+            children.append(telemetry_child)
         base = f'http://127.0.0.1:{args.port}'
         deadline = time.monotonic() + 35
         while not interrupted:
-            if any(child.poll() is not None for child in children):
-                raise RuntimeError('A service stopped during startup. See its message above.')
+            # Only the backend is required for the dashboard. The telemetry
+            # logger may wait on or lose the MAVLink connection; the dashboard
+            # (including the live CSV preview) stays open either way.
+            if backend.poll() is not None:
+                raise RuntimeError('The app backend stopped during startup. See its message above.')
             try:
                 if get_json(base + '/api/health').get('status') == 'ok':
                     break
@@ -227,7 +233,7 @@ def main(argv=None):
         if interrupted:
             return 0
         mission = env.get('FIREBASE_MISSION_ID', 'TV-LIVE-001')
-        print(f'\nDashboard: {base}/?mission={mission}\nConnections: {base}/connections\nFirebase branch: {env.get("FIREBASE_DETECTIONS_PATH", "detections")}\nCSV: {env["TELEMETRY_CSV_PATH"]}\nAutomatic timestamp matching is running; no lookup or y/n input is needed.\nPress Ctrl+C to stop all services.', flush=True)
+        print(f'\nDashboard: {base}/?mission={mission}\nConnections: {base}/connections\nLive CSV preview: {base}/live-preview\nFirebase branch: {env.get("FIREBASE_DETECTIONS_PATH", "detections")}\nCSV: {env["TELEMETRY_CSV_PATH"]}\nThe dashboard is ready. If telemetry is still connecting, that is fine — live values appear on the dashboard and the live preview as soon as the CSV updates.\nAutomatic timestamp matching is running; no lookup or y/n input is needed.\nPress Ctrl+C to stop all services.', flush=True)
         if not args.no_browser:
             webbrowser.open(base + '/?mission=' + mission)
         if args.mode == 'test':
@@ -237,8 +243,11 @@ def main(argv=None):
         while not interrupted:
             if backend.poll() is not None:
                 raise RuntimeError('Backend stopped unexpectedly.')
-            if args.mode == 'live' and len(children) > 1 and children[1].poll() is not None:
-                raise RuntimeError('Telemetry logger stopped. Check its message above.')
+            # The telemetry logger is not fatal: losing or never gaining the
+            # MAVLink connection keeps the dashboard available for review.
+            if telemetry_child is not None and not telemetry_warned and telemetry_child.poll() is not None:
+                telemetry_warned = True
+                print('Telemetry logger stopped; the dashboard stays open. Restart this command (or check the [telemetry] messages above) to resume CSV logging.', flush=True)
             if args.mode == 'test' and not sender_checked and children[-1].poll() is not None:
                 sender_checked = True
                 if children[-1].returncode:

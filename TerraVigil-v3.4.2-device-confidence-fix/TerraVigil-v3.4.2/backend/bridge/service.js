@@ -4,10 +4,135 @@ const path = require('node:path');
 const readline = require('node:readline');
 const { spawn } = require('node:child_process');
 const { isPractice, DEPLOYMENT } = require('../production-data');
+const { fuseMissionObservations } = require('../fusion/fuse');
 const root = path.resolve(__dirname, '../..');
 
 function resolveSetting(value, fallback) {
   return path.resolve(root, value?.trim() || fallback);
+}
+
+// ── Live CSV tail ─────────────────────────────────────────────────────────
+// Reads the last rows of the telemetry CSV the MAVLink logger appends to.
+// Purely read-only: no Firebase, no database, so it stays fast at 1 s polls.
+const LIVE_TAIL_BYTES = 64 * 1024;
+const LIVE_MERGE_ROWS = 40;
+const LIVE_MERGE_WINDOW_MS = 15_000;
+function parseBooleanText(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (text === 'true') return true;
+  if (text === 'false') return false;
+  return null;
+}
+function parseNumberText(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (text === '') return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function splitCsvLine(line) {
+  // The telemetry logger writes plain comma-separated values without quoting.
+  return line.split(',');
+}
+function readLiveTail(csvPath) {
+  let header;
+  try {
+    const handle = fs.openSync(csvPath, 'r');
+    try {
+      const head = Buffer.alloc(4096);
+      const read = fs.readSync(handle, head, 0, head.length, 0);
+      const text = head.toString('utf8', 0, read);
+      const firstLineEnd = text.indexOf('\n');
+      header = splitCsvLine((firstLineEnd === -1 ? text : text.slice(0, firstLineEnd)).trim());
+    } finally {
+      fs.closeSync(handle);
+    }
+  } catch {
+    return { error: 'read' };
+  }
+  let stat;
+  try { stat = fs.statSync(csvPath); } catch { return { error: 'stat' }; }
+  const handle = fs.openSync(csvPath, 'r');
+  try {
+    const length = Math.min(LIVE_TAIL_BYTES, stat.size);
+    const buffer = Buffer.alloc(length);
+    fs.readSync(handle, buffer, 0, length, stat.size - length);
+    const text = buffer.toString('utf8');
+    const lines = text.split('\n').filter((line) => line.trim() !== '');
+    // Drop a possibly partial first line (cut by the tail window).
+    if (length < stat.size && lines.length > 0) lines.shift();
+    if (length >= stat.size) lines.shift(); // header row
+    return { header, lines, stat };
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+function mergeLiveRows(header, lines) {
+  const merged = {};
+  const newest = lines.at(-1) ?? null;
+  const newestTime = newest === null ? null : Date.parse(splitCsvLine(newest)[0]);
+  // Walk backwards so the newest row wins; a row only fills fields that are
+  // still empty (each MAVLink message updates a subset of the columns).
+  for (let index = lines.length - 1; index >= Math.max(0, lines.length - LIVE_MERGE_ROWS); index -= 1) {
+    const values = splitCsvLine(lines[index]);
+    const rowTime = Date.parse(values[0]);
+    if (Number.isFinite(newestTime) && Number.isFinite(rowTime) &&
+      newestTime - rowTime > LIVE_MERGE_WINDOW_MS) break;
+    header.forEach((column, position) => {
+      const value = values[position];
+      if (value === undefined || value.trim() === '') return;
+      if (merged[column] === undefined) merged[column] = value.trim();
+    });
+  }
+  return merged;
+}
+function liveTelemetryFromCsv(csvPath) {
+  if (!csvPath || !fs.existsSync(csvPath)) {
+    return { state: 'missing', message: 'Telemetry CSV not found. Start the MAVLink logger or check TELEMETRY_CSV_PATH.', csv_path: csvPath ?? null };
+  }
+  const tail = readLiveTail(csvPath);
+  if (tail.error || !tail.header || !Array.isArray(tail.lines)) {
+    return { state: 'missing', message: 'Telemetry CSV could not be read.', csv_path: csvPath };
+  }
+  if (tail.lines.length === 0) {
+    return { state: 'waiting', message: 'Telemetry CSV has no rows yet. Values appear as soon as MAVLink telemetry is logged.', csv_path: csvPath };
+  }
+  const merged = mergeLiveRows(tail.header, tail.lines);
+  const timestamp = merged.timestamp_utc ?? null;
+  const parsedTime = timestamp === null ? null : Date.parse(timestamp);
+  const numeric = (column) => parseNumberText(merged[column]);
+  const latitude = numeric('latitude');
+  const longitude = numeric('longitude');
+  return {
+    state: 'live',
+    message: 'Streaming from the telemetry CSV.',
+    csv_path: csvPath,
+    csv_size_bytes: tail.stat.size,
+    csv_mtime: tail.stat.mtime.toISOString(),
+    tail_rows: tail.lines.length,
+    timestamp,
+    age_ms: parsedTime !== null && Number.isFinite(parsedTime) ? Math.max(0, Date.now() - parsedTime) : null,
+    latitude, longitude,
+    latitude_valid: latitude !== null && Math.abs(latitude) <= 90 && (longitude !== null && Math.abs(longitude) <= 180),
+    altitude_m: numeric('altitude_m'),
+    relative_altitude_m: numeric('relative_altitude_m'),
+    ground_speed_m_s: numeric('ground_speed_m_s'),
+    roll_deg: numeric('roll_deg'),
+    pitch_deg: numeric('pitch_deg'),
+    yaw_deg: numeric('yaw_deg'),
+    battery_voltage_v: numeric('battery_voltage_v'),
+    battery_remaining_percent: numeric('battery_remaining_percent'),
+    flight_mode: merged.flight_mode || null,
+    armed: parseBooleanText(merged.armed),
+    gps_fix_type: numeric('gps_fix_type'),
+    satellites: numeric('satellites'),
+    hdop: numeric('hdop'),
+    timestamp_source: merged.timestamp_source || null,
+    received_at_utc: merged.received_at_utc || null,
+    time_boot_ms: numeric('time_boot_ms'),
+    system_id: numeric('system_id'),
+    fields: merged,
+  };
 }
 function readBridgeConfig(env = process.env) {
   const credentials = resolveSetting(env.FIREBASE_SERVICE_ACCOUNT,
@@ -108,6 +233,15 @@ function createBridgeService({ getDB, config: suppliedConfig } = {}) {
         await db.collection('observations').deleteOne({ _id: event.event_id });
       }
       await db.collection('firebase_events').replaceOne({ _id: event.event_id }, record, { upsert: true });
+      // Sensor fusion: a camera detection near a metal hit (in time + space) is
+      // upgraded to CONFIRMED with a risk level. Runs after each ingest so the
+      // dashboard reflects agreement as soon as both sensors have reported.
+      try {
+        await fuseMissionObservations(db, event.mission_id);
+      } catch (fusionError) {
+        // Fusion is additive; a failure must not block event ingestion.
+        console.warn('Sensor fusion pass failed:', fusionError?.message || fusionError);
+      }
     } else if (message.type === 'snapshot') {
       // Reconcile deletions even after restarting: the Python process has no old keys.
       if (message.mission_id !== config.missionId || !Array.isArray(message.event_ids)) throw new Error('Invalid snapshot');
@@ -175,6 +309,10 @@ function createBridgeService({ getDB, config: suppliedConfig } = {}) {
     }
     try { await ensureMission(await getDB(), config.missionId, false); }
     catch { state = { ...state, state: 'error', message: 'Cannot prepare the live mission. Check local database access.' }; return; }
+    // Re-scan stored observations so existing data reflects the current fusion
+    // thresholds even before any new Firebase event arrives.
+    try { await refusion(); }
+    catch (fusionError) { console.warn('Startup sensor fusion pass failed:', fusionError?.message || fusionError); }
     state = { ...state, state: 'connecting', message: 'Authenticating and reading Firebase detections…' };
     const task = launch(); child = task.processChild;
     task.finished.catch(error => {
@@ -235,6 +373,22 @@ function createBridgeService({ getDB, config: suppliedConfig } = {}) {
       return candidate;
     } catch { return null; }
   }
-  return { start, stop, restart, status, events, imageFile, ingest };
+  function liveTelemetry() {
+    // Read the CSV directly (config may be unavailable when the bridge is in
+    // an error state); fall back to the default logger path.
+    const csvPath = config?.csv || path.resolve(root, 'telemetry/DroneTelemetry/telemetry.csv');
+    return liveTelemetryFromCsv(csvPath);
+  }
+  /**
+   * Re-run sensor fusion over every stored observation for the mission. Safe to
+   * call repeatedly; used on startup and by the manual re-fuse endpoint so
+   * existing data reflects the current thresholds.
+   */
+  async function refusion() {
+    const db = await getDB();
+    const mission = config?.missionId || 'TV-LIVE-001';
+    return fuseMissionObservations(db, mission);
+  }
+  return { start, stop, restart, status, events, imageFile, ingest, liveTelemetry, refusion };
 }
 module.exports = { createBridgeService, readBridgeConfig };

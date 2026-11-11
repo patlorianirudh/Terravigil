@@ -157,8 +157,15 @@ def run(args):
                                   'relative_altitude_m': numeric(raw.get('relative_altitude_m')),
                                   'ground_speed_ms': numeric(raw.get('ground_speed_m_s')),
                                   'heading_deg': numeric(raw.get('yaw_deg')),
+                                  'roll_deg': numeric(raw.get('roll_deg')),
+                                  'pitch_deg': numeric(raw.get('pitch_deg')),
                                   'battery_percent': numeric(raw.get('battery_remaining_percent')),
+                                  'battery_voltage_v': numeric(raw.get('battery_voltage_v')),
+                                  'flight_mode': (raw.get('flight_mode') or '').strip() or None,
+                                  'armed': str(raw.get('armed')).strip().lower() == 'true',
                                   'gps_fix_type': numeric(raw.get('gps_fix_type')),
+                                  'satellites': numeric(raw.get('satellites')),
+                                  'hdop': numeric(raw.get('hdop')),
                                   'synthetic': bool(args.fixture), 'source': 'pixhawk_csv'})
                     track_emitted.add(identity)
                 for start in range(0, len(track), 500):

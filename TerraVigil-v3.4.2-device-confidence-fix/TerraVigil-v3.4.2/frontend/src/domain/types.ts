@@ -83,6 +83,10 @@ export interface TrackPoint {
   hdop: number | null;
   satellites: number | null;
   batteryPercent: number | null;
+  /** Live Pixhawk CSV fields surfaced by the firebase telemetry bridge. */
+  batteryVoltageV?: number | null;
+  flightMode?: string | null;
+  armed?: boolean | null;
   linkQualityPercent: number | null; // telemetry radio RSSI, reported by the link
   pass: PassKind | null; // derived from altitude band
   achievedFps: number | null;
